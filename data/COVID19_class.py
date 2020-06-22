@@ -32,16 +32,29 @@ class Covid19Data():
             regions_df = df.loc[df["Area code"].isin(gss_codes)]
         elif borough_names:
             regions_df = df.loc[df["Area name"].isin(borough_names)]
+        cols = regions_df.columns.tolist()
+        cols.remove("Area type")
+        regions_df = regions_df.drop_duplicates(subset=cols)
         return regions_df
 
-    def tidy(self, df, gss_codes=False):
+    def tidy(self, df, case_measurement, gss_codes=False):
+        variable_dict = {"daily_absolute": "Daily lab-confirmed cases",
+                         "cumulative_absolute": "Cumulative lab-confirmed cases",
+                         "cumulative_rate": "Cumulative lab-confirmed cases rate"}
+
         if gss_codes:
-            new_df = df[["Area name", "Area code", "Specimen date", "Daily lab-confirmed cases"]]
+            new_df = df.copy()[["Area name", "Area code", "Specimen date", variable_dict[case_measurement]]]
             new_df.columns = ["borough", "gss_code", "date", "cases"]
         else:
-            new_df = df[["Area name", "Specimen date", "Daily lab-confirmed cases"]]
+            new_df = df.copy()[["Area name", "Specimen date", variable_dict[case_measurement]]]
             new_df.columns = ["borough", "date", "cases"]
-        new_df.set_index("date", inplace=True)
-        new_df.index = pd.to_datetime(new_df.index)
+
+        new_df.date = pd.to_datetime(new_df.date)
+        new_df = new_df.copy().pivot(index="date", columns="borough", values="cases")
+
+        # Make some large assumptions
+        new_df.loc[new_df.index == new_df.index.min()] = 0
+        new_df = new_df.interpolate("time")
+
         return new_df
 

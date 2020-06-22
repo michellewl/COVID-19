@@ -16,7 +16,7 @@ class LAQNData():
         london_sites_df = pd.DataFrame(london_sites.json()['Sites']['Site'])
         all_site_codes = london_sites_df["@SiteCode"].tolist()
 
-        no2_df = pd.DataFrame()
+        laqn_df = pd.DataFrame()
 
         for site_code in all_site_codes:
             if verbose:
@@ -29,41 +29,39 @@ class LAQNData():
             cur_df.set_index("date", drop=True, inplace=True)
 
             try:
-                if no2_df.empty:
-                    no2_df = cur_df.copy()
+                if laqn_df.empty:
+                    laqn_df = cur_df.copy()
                 else:
-                    no2_df = no2_df.join(cur_df.copy(), how="outer")
+                    laqn_df = laqn_df.join(cur_df.copy(), how="outer")
                 if verbose:
                     print(f"Joined.")
 
             except ValueError:  # Trying to join with duplicate column names
                 rename_dict = {}
-                for x in list(set(cur_df.columns).intersection(no2_df.columns)):
+                for x in list(set(cur_df.columns).intersection(laqn_df.columns)):
                     rename_dict.update({x: f"{x}_"})
                     print(f"Renamed duplicated column:\n{rename_dict}")
-                no2_df.rename(mapper=rename_dict, axis="columns", inplace=True)
-                if no2_df.empty:
-                    no2_df = cur_df.copy()
+                laqn_df.rename(mapper=rename_dict, axis="columns", inplace=True)
+                if laqn_df.empty:
+                    laqn_df = cur_df.copy()
                 else:
-                    no2_df = no2_df.join(cur_df.copy(), how="outer")
+                    laqn_df = laqn_df.join(cur_df.copy(), how="outer")
                 if verbose:
                     print(f"Joined.")
 
             except KeyError:  # Trying to join along indexes that don't match
                 print(f"Troubleshooting {site_code}...")
                 cur_df.index = cur_df.index + ":00"
-                if no2_df.empty:
-                    no2_df = cur_df.copy()
+                if laqn_df.empty:
+                    laqn_df = cur_df.copy()
                 else:
-                    no2_df = no2_df.join(cur_df.copy(), how="outer")
+                    laqn_df = laqn_df.join(cur_df.copy(), how="outer")
                 print(f"{site_code} joined.")
 
-        no2_df.dropna(axis="columns", how="all", inplace=True)
+        laqn_df.dropna(axis="columns", how="all", inplace=True)
 
-        print(f"Saving full dataframe. {no2_df.shape}")
-        save_filepath = path.join(self.home_folder, f"{self.species}_all_sites.csv")
-        no2_df.to_csv(save_filepath)
-        print("Completed save.")
+        return laqn_df
+
 
     def borough_averages(self, sites_filename, verbose=True):
         print("Averaging sites according to boroughs...")
@@ -136,8 +134,7 @@ class LAQNData():
                 else:
                     borough_df = borough_df.join(cur_sites_df.copy(), how="left")
 
-        save_filepath = path.join(self.home_folder, f"{self.species}_boroughs.csv")
-        borough_df.to_csv(save_filepath)
+        return borough_df
 
     def resample_time(self, df, key, quantile_step):
         df.set_index("date", drop=True, inplace=True)
