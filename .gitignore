@@ -2,5 +2,5 @@
 data/statistical-gis-boundaries-london/
 .idea/
 data/__pycache__/
-
+models/LSTM/__pycache__/
 
