@@ -1,0 +1,6 @@
+*.csv
+data/statistical-gis-boundaries-london/
+.idea/
+data/__pycache__/
+
+
