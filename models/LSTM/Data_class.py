@@ -36,7 +36,7 @@ class DataFrameProcessor():
                             np.round(np.arange(0, 1 + self.qs, self.qs), 2).tolist()]
         self.laqn_filenames = [f"{self.species}_daily_{method}.csv" for method in self.aggregation]
         self.save_folder = path.join(model_folder, "LSTM", boroughs_descriptor,
-                                     f"{species}_{len(self.aggregation)}_quantiles", f"{self.tw}-day_tw")
+                                     f"{species}_{len(self.aggregation)-1}_quantiles", f"{self.tw}-day_tw")
 
         if not path.exists(self.save_folder):
             makedirs(self.save_folder)
@@ -227,10 +227,10 @@ class DataFrameProcessor():
         print("\nSaved npy arrays.")
 
 
-class PyTorchDataset(Dataset):
+class LSTMTorchDataset(Dataset):
     def __init__(self, sequences_path, targets_path, noise_std=False):
         self.inputs = torch.from_numpy(np.load(sequences_path)).float()
-        self.targets = torch.from_numpy(np.load(targets_path)).float()
+        self.targets = torch.from_numpy(np.load(targets_path).squeeze()).float()
         self.noise_std = noise_std  # Standard deviation of Gaussian noise
 
     def __len__(self):
