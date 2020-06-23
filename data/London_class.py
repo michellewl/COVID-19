@@ -32,3 +32,24 @@ class LondonGIS():
     def get_gss_codes(self):
         gis_df = self.read_GIS(verbose=False)
         return gis_df["GSS_CODE"].unique().tolist()
+
+
+def match_rename_boroughs(df_to_rename, rename_by_df, save_match_list=True):
+    borough_rename_dict = {}
+    borough_match_list = []
+
+    for truth_borough in rename_by_df.columns:
+        for rename_borough in df_to_rename.columns:
+            cv_borough_words = truth_borough.split()
+            laqn_borough_words = rename_borough.split()
+            match = set(cv_borough_words).intersection(laqn_borough_words)
+            if len(match) > 1 or (len(match) == 1 and "and" not in match):
+                borough_rename_dict.update({rename_borough: truth_borough})
+                borough_match_list.append(truth_borough)
+    df_to_rename.rename(columns=borough_rename_dict, inplace=True)
+
+    if save_match_list:
+        with open("borough_matches.txt", "w") as outfile:
+            outfile.write("\n".join(borough_match_list))
+            outfile.close()
+    return df_to_rename
