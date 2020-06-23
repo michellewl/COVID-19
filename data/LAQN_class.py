@@ -155,6 +155,6 @@ class LAQNData():
             aggregated_df = df.copy().resample(key).quantile(method)
             method = f"{int(method * 100)}_quantile"
             aggregated_df.to_csv(path.join(save_folder, f"{self.species}_{keyword}_{method}.csv"), index=True)
-
+            print(aggregated_df.shape)
 
 

@@ -2,32 +2,46 @@ import torch
 from torch.utils.data import Dataset
 import numpy as np
 import pandas as pd
-from os import path, listdir
+from os import path, listdir, makedirs
 from dateutil.relativedelta import relativedelta
 from sklearn.model_selection import train_test_split
 from sklearn.preprocessing import StandardScaler
 import joblib
 
 
-class ProcessDataArrays():
-    def __init__(self, data_folder, boroughs, species, training_window, quantile_step):
+# Define a function for creating sequences from numpy arrays
+
+def create_x_sequences(x_array, num_sequences, tw):
+    input_sequences = []
+    for i in range(num_sequences):
+        train_sequence = x_array[i:i + tw]
+        input_sequences.append(train_sequence)
+    input_sequences = np.stack(input_sequences, axis=0)
+    return input_sequences
+
+# Define a class for the processed dataframes
+
+
+class DataFrameProcessor():
+    def __init__(self, data_folder, model_folder, boroughs, boroughs_descriptor, species, training_window, quantile_step):
         self.laqn_folder = path.join(data_folder, "daily")
         self.covid_filepath = path.join(data_folder, "london_covid_rate.csv")
         self.boroughs = boroughs
         self.species = species
         self.tw = training_window
         self.qs = quantile_step
+        print(f"{len(self.boroughs)} boroughs selected.")
+
+        self.aggregation = [f"{int(method * 100)}_quantile" for method in
+                            np.round(np.arange(0, 1 + self.qs, self.qs), 2).tolist()]
+        self.laqn_filenames = [f"{self.species}_daily_{method}.csv" for method in self.aggregation]
+        self.save_folder = path.join(model_folder, "LSTM", boroughs_descriptor,
+                                     f"{species}_{len(self.aggregation)}_quantiles", f"{self.tw}-day_tw")
+
+        if not path.exists(self.save_folder):
+            makedirs(self.save_folder)
 
     def create_input_output_arrays(self, val_size, test_months=1):
-
-        def create_x_sequences(x_array, num_sequences, tw):
-            input_sequences = []
-            for i in range(num_sequences):
-                train_sequence = x_array[i:i + tw]
-                input_sequences.append(train_sequence)
-            input_sequences = np.stack(input_sequences, axis=0)
-            return input_sequences
-
         # Load the COVID data
         covid_df = pd.read_csv(self.covid_filepath, index_col="date")
         covid_df.index = pd.to_datetime(covid_df.index)
@@ -43,16 +57,10 @@ class ProcessDataArrays():
         start_date_laqn_test = start_date_covid_test - relativedelta(days=self.tw)
         end_date_laqn_test = end_date_covid_test - relativedelta(days=1)
 
-        aggregation = [f"{int(method * 100)}_quantile" for method in
-                       np.round(np.arange(0, 1 + self.quantile_step, self.quantile_step), 2).tolist()]
-        laqn_filenames = [f"{self.species}_daily_{method}.csv" for method in aggregation]
-
-        # # Load the LAQN data
-        # for filename in laqn_filenames:
-        #     laqn_df = pd.read_csv(path.join(self.laqn_folder, filename), index_col="date")
-        #     laqn_df.index = pd.to_datetime(laqn_df.index)
-        #     laqn_df = laqn_df.loc[(laqn_df.index >= self.start_date_laqn) & (laqn_df.index <= self.end_date_laqn)]
-        #     laqn_df = laqn_df[self.boroughs]
+        # print(start_date_laqn_train, start_date_covid_train)
+        # print(end_date_laqn_train, end_date_covid_train)
+        # print(start_date_laqn_test, start_date_covid_test)
+        # print(end_date_laqn_test, end_date_covid_test)
 
         # Initiate lists for arrays
         # All training arrays, including validation set (used for plotting/evaluation)
@@ -74,35 +82,36 @@ class ProcessDataArrays():
         print("Processing boroughs...")
         for borough in self.boroughs:
 
-            # Load the split the NO2 data
-            no2_training_array_list = []
-            no2_test_array_list = []
-            for no2_file in laqn_filenames:
-                no2_df = pd.read_csv(path.join(self.laqn_folder, no2_file)).set_index("date")
-                no2_df.index = pd.to_datetime(no2_df.index)
-                no2_array = no2_df.loc[
-                    (no2_df.index >= start_date_laqn_train) & (no2_df.index <= end_date_laqn_train),
+            # Load the split the laqn data
+            laqn_training_array_list = []
+            laqn_test_array_list = []
+            # Each monthly aggregation statistic is in a separate file
+            for laqn_file in self.laqn_filenames:
+                # Read the dataframe
+                laqn_df = pd.read_csv(path.join(self.laqn_folder, laqn_file)).set_index("date")
+                laqn_df.index = pd.to_datetime(laqn_df.index)
+                # Isolate the training array
+                laqn_array = laqn_df.loc[
+                    (laqn_df.index >= start_date_laqn_train) & (laqn_df.index <= end_date_laqn_train),
                     borough].values.reshape(-1, 1)
-                no2_training_array_list.append(no2_array)
+                laqn_training_array_list.append(laqn_array)
+                # Isolate the test array
+                laqn_array = laqn_df.loc[(laqn_df.index >= start_date_laqn_test) &
+                                         (laqn_df.index <= end_date_laqn_test), borough].values.reshape(-1, 1)
+                laqn_test_array_list.append(laqn_array)
 
-                no2_array = no2_df.loc[(no2_df.index >= start_date_laqn_test) &
-                                       (no2_df.index <= end_date_laqn_test), borough].values.reshape(-1, 1)
-                no2_test_array_list.append(no2_array)
+            # Join the laqn data arrays for training and testing
+            x_train = np.concatenate(laqn_training_array_list, axis=1)
+            x_test = np.concatenate(laqn_test_array_list, axis=1)
 
-            # Join the NO2 data arrays for training and testing
-            x_train = np.concatenate(no2_training_array_list, axis=1)
-            x_test = np.concatenate(no2_test_array_list, axis=1)
-
-            # Define the breast cancer data arrays for training and testing
+            # Define the disease data arrays for training and testing
             y_train = covid_df.loc[(covid_df.index >= start_date_covid_train) &
-                                       (covid_df.index <= end_date_covid_train), borough] \
-                .values.reshape(-1, 1)
+                                   (covid_df.index <= end_date_covid_train), borough].values.reshape(-1, 1)
             y_test = covid_df.loc[(covid_df.index >= start_date_covid_test) &
-                                       (covid_df.index <= end_date_covid_test), borough] \
-                .values.reshape(-1, 1)
-
+                                  (covid_df.index <= end_date_covid_test), borough].values.reshape(-1, 1)
 
             # Create the input sequences for the LSTM
+            # print(x_train.shape, y_train.shape, x_test.shape, y_test.shape)
             train_val_inputs = create_x_sequences(x_train, len(y_train), self.tw)
             test_inputs = create_x_sequences(x_test, len(y_test), self.tw)
 
@@ -110,7 +119,7 @@ class ProcessDataArrays():
             training_sequences, validation_sequences, training_targets, validation_targets = train_test_split(
                 train_val_inputs, y_train, test_size=val_size, random_state=1)
 
-            # Add all the arrays to their relevant lists
+            # Add all the arrays to their relevant lists (compiled for all boroughs)
             train_seq_list.append(training_sequences)
             train_targ_list.append(training_targets)
             val_seq_list.append(validation_sequences)
@@ -123,12 +132,10 @@ class ProcessDataArrays():
             # Determine the date & borough arrays and append to the relevant lists
             training_date_array = covid_df.loc[
                 (covid_df.index >= start_date_covid_train) &
-                (covid_df.index <= end_date_covid_train), borough].index.map(
-                str).to_numpy().reshape(-1, 1)
+                (covid_df.index <= end_date_covid_train), borough].index.map(str).to_numpy().reshape(-1, 1)
             test_date_array = covid_df.loc[
                 (covid_df.index >= start_date_covid_test) &
-                (covid_df.index <= end_date_covid_test), borough].index.map(
-                str).to_numpy().reshape(-1, 1)
+                (covid_df.index <= end_date_covid_test), borough].index.map(str).to_numpy().reshape(-1, 1)
             borough_train_array = np.repeat(np.array([borough]), training_date_array.shape[0]).reshape(-1, 1)
             borough_test_array = np.repeat(np.array([borough]), test_date_array.shape[0]).reshape(-1, 1)
             training_meta_array = np.concatenate((training_date_array, borough_train_array), axis=1)
@@ -136,7 +143,7 @@ class ProcessDataArrays():
             training_meta_list.append(training_meta_array)
             test_meta_list.append(test_meta_array)
 
-        # Concatentate the full arrays from the lists of arrays
+        # Concatentate the full arrays from the lists of arrays per borough
         # Training arrays
         training_sequences = np.concatenate(train_seq_list, axis=0)
         training_targets = np.concatenate(train_targ_list, axis=0)
@@ -160,8 +167,8 @@ class ProcessDataArrays():
         y_normaliser = StandardScaler().fit(train_val_targets)
 
         # Save to later apply un-normalisation to test sets for plotting/evaluation
-        joblib.dump(x_normaliser, path.join(save_folder, "x_normaliser.sav"))
-        joblib.dump(y_normaliser, path.join(save_folder, f"y_normaliser.sav"))
+        joblib.dump(x_normaliser, path.join(self.save_folder, "x_normaliser.sav"))
+        joblib.dump(y_normaliser, path.join(self.save_folder, f"y_normaliser.sav"))
 
         # Normalise input and output data
         training_sequences = x_normaliser.transform(
@@ -200,30 +207,24 @@ class ProcessDataArrays():
         print(
             f"Validation sequences {validation_sequences_dropna.shape} Validation targets {validation_targets_dropna.shape}")
         print(
-            f"Train/val sequences {train_val_sequences_dropna.shape} Train/val targets {train_val_targets_dropna.shape}")
-        print(f"Test sequences {test_sequences_dropna.shape} Test targets {test_targets_dropna.shape}")
-
-        print(f"Training dates {training_dates_dropna.shape} Test dates {test_dates_dropna.shape}")
+            f"Train/val sequences {train_val_sequences_dropna.shape} Train/val targets {train_val_targets_dropna.shape} Training dates {training_dates_dropna.shape}")
+        print(f"Test sequences {test_sequences_dropna.shape} Test targets {test_targets_dropna.shape} Test dates {test_dates_dropna.shape}")
 
         # Save the arrays
-        np.save(path.join(save_folder, "training_sequences.npy"), training_sequences_dropna)
-        np.save(path.join(save_folder, "validation_sequences.npy"), validation_sequences_dropna)
-        np.save(path.join(save_folder, f"training_targets_{age_category}.npy"), training_targets_dropna)
-        np.save(path.join(save_folder, f"validation_targets_{age_category}.npy"), validation_targets_dropna)
-        np.save(path.join(save_folder, "train_val_sequences.npy"), train_val_sequences_dropna)
-        np.save(path.join(save_folder, f"train_val_targets_{age_category}.npy"), train_val_targets_dropna)
+        np.save(path.join(self.save_folder, "training_sequences.npy"), training_sequences_dropna)
+        np.save(path.join(self.save_folder, "validation_sequences.npy"), validation_sequences_dropna)
+        np.save(path.join(self.save_folder, f"training_targets.npy"), training_targets_dropna)
+        np.save(path.join(self.save_folder, f"validation_targets.npy"), validation_targets_dropna)
+        np.save(path.join(self.save_folder, "train_val_sequences.npy"), train_val_sequences_dropna)
+        np.save(path.join(self.save_folder, f"train_val_targets.npy"), train_val_targets_dropna)
 
-        np.save(path.join(save_folder, "test_sequences.npy"), test_sequences_dropna)
-        np.save(path.join(save_folder, f"test_targets_{age_category}.npy"), test_targets_dropna)
+        np.save(path.join(self.save_folder, "test_sequences.npy"), test_sequences_dropna)
+        np.save(path.join(self.save_folder, f"test_targets.npy"), test_targets_dropna)
 
-        np.save(path.join(save_folder, "train_val_dates.npy"), training_dates_dropna)
-        np.save(path.join(save_folder, f"test_dates_{age_category}.npy"), test_dates_dropna)
+        np.save(path.join(self.save_folder, "train_val_dates.npy"), training_dates_dropna)
+        np.save(path.join(self.save_folder, f"test_dates.npy"), test_dates_dropna)
 
         print("\nSaved npy arrays.")
-
-
-
-
 
 
 class PyTorchDataset(Dataset):

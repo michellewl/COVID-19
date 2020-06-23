@@ -45,17 +45,44 @@ start_covid = cv_df.index.min()
 end_covid = cv_df.index.max()
 
 start_no2 = str(start_covid - relativedelta(months=1))[:10]
-end_no2 = str(end_covid - relativedelta(months=1))[:10]
+end_no2 = str(end_covid)[:10]
 
 laqn = LAQNData(home_folder=home_folder, species="NO2")
 
-no2_df = laqn.download_sites(start_date=start_no2, end_date=end_no2, verbose=False)
-print(f"{no2_df.shape}")
-no2_df.to_csv(f"{laqn.species}_all_sites.csv")
+# no2_df = laqn.download_sites(start_date=start_no2, end_date=end_no2, verbose=False)
+# print(f"{no2_df.shape}")
+# no2_df.to_csv(f"{laqn.species}_all_sites.csv")
 
 borough_df = laqn.borough_averages(f"{laqn.species}_all_sites.csv", verbose=False)
+
+
+def match_rename_boroughs(df_to_rename, rename_by_df, save_match_list=True):
+    borough_rename_dict = {}
+    borough_match_list = []
+
+    for truth_borough in rename_by_df.columns:
+        for rename_borough in df_to_rename.columns:
+            cv_borough_words = truth_borough.split()
+            laqn_borough_words = rename_borough.split()
+            match = set(cv_borough_words).intersection(laqn_borough_words)
+            if len(match) > 1 or (len(match) == 1 and "and" not in match):
+                borough_rename_dict.update({rename_borough: truth_borough})
+                borough_match_list.append(truth_borough)
+    df_to_rename.rename(columns=borough_rename_dict, inplace=True)
+
+    if save_match_list:
+        with open("borough_matches.txt", "w") as outfile:
+            outfile.write("\n".join(borough_match_list))
+            outfile.close()
+    return df_to_rename
+
+##############
+
+
+borough_df = match_rename_boroughs(borough_df, cv_df, save_match_list=True)
 borough_df.to_csv(f"{laqn.species}_boroughs.csv")
 
 laqn.resample_time(df=pd.read_csv(f"{laqn.species}_boroughs.csv"), key="D", quantile_step=0.25)
+
 
 
