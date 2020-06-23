@@ -33,8 +33,8 @@ gis_df = london.read_GIS(filename="London_Borough_Excluding_MHW.shp")
 # ----------------------------------------------------------------------------------------------------------------------
 
 cv_df = covid.get_regions(gss_codes=london.get_gss_codes())
-cv_df = covid.tidy(cv_df, case_measurement="cumulative_rate")
-cv_df.to_csv(f"london_covid_rate.csv", index=True)
+cv_df = covid.tidy(cv_df, case_measurement="daily_absolute")
+cv_df.to_csv(f"london_covid_daily_numbers.csv", index=True)
 print(cv_df.shape)
 
 # ----------------------------------------------------------------------------------------------------------------------
