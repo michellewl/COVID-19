@@ -23,9 +23,9 @@ def create_x_sequences(x_array, num_sequences, tw):
 
 
 class DataFrameProcessor():
-    def __init__(self, data_folder, model_folder, boroughs, boroughs_descriptor, species, training_window, quantile_step):
+    def __init__(self, data_folder, target_filename, model_folder, boroughs, boroughs_descriptor, species, training_window, quantile_step):
         self.laqn_folder = path.join(data_folder, "daily")
-        self.covid_filepath = path.join(data_folder, "london_covid_rate.csv")
+        self.covid_filepath = path.join(data_folder, target_filename)
         self.boroughs = boroughs
         self.species = species
         self.tw = training_window

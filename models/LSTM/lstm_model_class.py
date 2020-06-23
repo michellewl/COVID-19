@@ -3,11 +3,15 @@ import matplotlib.pyplot as plt
 import seaborn as sns
 sns.set(style="darkgrid")
 import torch.nn as nn
-from os import path
+from os import path, makedirs
 from Data_class import LSTMTorchDataset
 from torch.utils.data import DataLoader
 from torch.optim import Adam
 import torch
+from sklearn.metrics import r2_score, mean_squared_error
+import joblib
+import numpy as np
+import pandas as pd
 
 
 class LSTMModule(nn.Module):
@@ -155,10 +159,157 @@ class LSTMModel():
 
         print(f"Finished training for {num_epochs} epochs.")
 
-    def evaluate(self):
+    def evaluate(self, training_window, disease, use_overfit_model=False, show_plot=False):
         train_val_dataloader = DataLoader(self.train_val_dataset, batch_size=self.batch_size, shuffle=False)
         test_dataloader = DataLoader(self.test_dataset, batch_size=self.batch_size, shuffle=False)
 
+        # Load the model
+        checkpoint = torch.load(path.join(self.array_folder, self.model_filename))
+
+        if use_overfit_model:
+            self.model.load_state_dict(checkpoint["final_state_dict"])
+            epoch = checkpoint["total_epochs"]
+        else:
+            self.model.load_state_dict(checkpoint["best_state_dict"])
+            epoch = checkpoint["best_epoch"]
+
+        # Model evaluation
+        self.model.eval()
+
+        # Make predictions on training set
+        training_targets = []
+        training_prediction = []
+
+        with torch.no_grad():
+            for batch_num, data in enumerate(train_val_dataloader):
+                sequences = data["sequences"]
+                targets = data["targets"]
+
+                outputs = self.model(sequences)
+
+                training_targets.append(targets.detach().numpy())
+                training_prediction.append(outputs.detach().numpy())
+
+        # Load the normaliser and un-normalise the predictions and targets
+        y_normaliser = joblib.load(path.join(self.y_normaliser_path))
+        training_targets = y_normaliser.inverse_transform(np.concatenate(training_targets, axis=None))
+        training_prediction = y_normaliser.inverse_transform(np.concatenate(training_prediction, axis=None))
+        print(f"Train targets {training_targets.shape}, Train predict {training_prediction.shape}")
+
+        # Compute the performance metrics
+        train_rsq = r2_score(training_targets, training_prediction)
+        train_mse = mean_squared_error(training_targets, training_prediction)
+        print(f"Train R sq {train_rsq}\nTrain MSE {train_mse}")
+
+        # Make predictions on test set
+        test_targets = []
+        test_prediction = []
+
+        with torch.no_grad():
+            for batch_num, data in enumerate(test_dataloader):
+                sequences = data["sequences"]
+                targets = data["targets"]
+
+                outputs = self.model(sequences)
+
+                test_targets.append(targets.detach().numpy())
+                test_prediction.append(outputs.detach().numpy())
+
+        # Un-normalise the test set predictions and targets
+        test_targets = y_normaliser.inverse_transform(np.concatenate(test_targets, axis=None))
+        test_prediction = y_normaliser.inverse_transform(np.concatenate(test_prediction, axis=None))
+        print(f"\nTest targets {test_targets.shape}, Test predict {test_prediction.shape}")
+
+        # Compute the performance metrics
+        test_rsq = r2_score(test_targets, test_prediction)
+        test_mse = mean_squared_error(test_targets, test_prediction)
+        print(f"Test R sq {test_rsq}\nTest MSE {test_mse}")
+
+        # Make dataframes for the train and test set predictions and targets
+        training_dates_boroughs = np.load(path.join(self.train_val_dates_path), allow_pickle=True)
+        test_dates_boroughs = np.load(path.join(self.test_dates_path), allow_pickle=True)
+
+        training_df, test_df = pd.DataFrame(training_dates_boroughs, columns=["date", "borough"]).set_index(
+            "date"), pd.DataFrame(test_dates_boroughs, columns=["date", "borough"]).set_index("date")
+        training_df["target"], training_df["prediction"] = training_targets, training_prediction
+        test_df["target"], test_df["prediction"] = test_targets, test_prediction
+        training_df.index, test_df.index = pd.to_datetime(training_df.index), pd.to_datetime(test_df.index)
+        print(f"\nTraining dataframe {training_df.shape}, Test dataframe {test_df.shape}")
+        boroughs = test_df["borough"].unique()
+        print(f"{len(boroughs)} boroughs in test set")
+
+        # Make plots
+
+        # Define the save folder for the plots and create if it doesn't exist already
+        save_folder = path.join(self.array_folder, "results_plots")
+        if not path.exists(save_folder):
+            makedirs(save_folder)
+        print("Plotting boroughs...")
+
+        # Create plot for each borough that had test data
+        for borough in boroughs:
+            fig, axs = plt.subplots(2, 1, figsize=(15, 10))
+
+            # Plot training predictions and targets
+            axs[0].plot(training_df.loc[training_df["borough"] == borough].index,
+                        training_df.loc[training_df["borough"] == borough, "target"], label="observed")
+            axs[0].plot(training_df.loc[training_df["borough"] == borough].index,
+                        training_df.loc[training_df["borough"] == borough, "prediction"], label="prediction")
+            # Give the plot a title and annotations
+            axs[0].set_title(f"Training set ({training_df.index.min()} to {training_df.index.max()})")
+            axs[0].annotate(f"R$^2$ = {train_rsq}  MSE = {train_mse}", xy=(0.05, 0.92), xycoords="axes fraction",
+                            fontsize=12)
+
+            # Plot test predictions and targets
+            axs[1].plot(test_df.loc[test_df["borough"] == borough].index, test_df.loc[test_df["borough"] == borough, "target"],
+                        label="observed")
+            axs[1].plot(test_df.loc[test_df["borough"] == borough].index, test_df.loc[test_df["borough"] == borough, "prediction"],
+                        label="prediction")
+            # Give the plot a title and annotations
+            axs[1].set_title(f"Test set ({test_df.index.min()} to {test_df.index.max()})")
+            axs[1].annotate(f"R$^2$ = {test_rsq}  MSE = {test_mse}", xy=(0.05, 0.92), xycoords="axes fraction",
+                            fontsize=12)
+
+            # Set axes labels for both subplots
+            for ax in axs.flatten():
+                ax.set_xlabel("Date")
+                ax.set_ylabel(f"{disease}")
+
+            # Add an overall title for the figure
+            fig.suptitle(f"LSTM model for {borough}")
+
+            # Add experiment details as annotations in the figure
+            plt.figtext(0.1, 0.5, f"{training_window} day training window",
+                        fontsize=12)
+            plt.figtext(0.1, 0.48, f"LSTM hidden layer size {self.model.hidden_layer_size}", fontsize=12)
+            plt.figtext(0.1, 0.46, f"Model learnt at epoch {epoch}", fontsize=12)
+
+            # Add a legend and adjust figure spacing
+            plt.legend(loc=1)
+            fig.subplots_adjust(top=0.5)
+            fig.tight_layout(pad=2)
+
+            # Simplify the borough name for saving
+            borough = borough.replace("NHS ", "").replace(" ", "_")
+            try:
+                borough = borough[:borough.index("_(")]
+            except:
+                pass
+
+            plot_filename = f"{borough}_timeseries_hl{self.hidden_layer_size}"
+            if use_overfit_model:
+                plot_filename = f"{borough}_timeseries_overfit_hl{self.hidden_layer_size}"
+            if self.noise_std:
+                plot_filename += f"_augmented{self.noise_std}".replace(".", "")
+
+            # Save the figure
+            fig.savefig(path.join(save_folder, plot_filename + ".png"), dpi=fig.dpi)
+
+            if show_plot:
+                plt.show()
+
+            # At the end of the loop, close the figure
+            plt.close()
 
     def plot_loss(self, test_loss=True, show_plot=False):
         # Load training data so we can compute the number of features
