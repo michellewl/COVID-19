@@ -7,4 +7,5 @@ models/LSTM/__pycache__/
 *.npy
 *.tar
 *.sav
+*_crop.png
 
