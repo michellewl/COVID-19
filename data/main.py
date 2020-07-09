@@ -6,7 +6,8 @@ from dateutil.relativedelta import relativedelta
 import pandas as pd
 
 
-download_new_data = False
+download_new_data = True
+download_GIS = False
 
 
 home_folder = path.dirname(path.realpath(__file__))
@@ -20,7 +21,7 @@ urls_london = ["https://data.london.gov.uk/download/statistical-gis-boundary-fil
 # ----------------------------------------------------------------------------------------------------------------------
 
 london = LondonGIS(home_folder, urls_london[0])
-if download_new_data:
+if download_GIS:
     london.download_GIS()
 gis_df = london.read_GIS(filename="London_Borough_Excluding_MHW.shp")
 
