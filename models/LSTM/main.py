@@ -17,7 +17,7 @@ boroughs = textfile.read().split("\n")
 
 boroughs_descriptor = "greater_london_cluster"
 species = "NO2"
-training_window = 7
+training_window = 14
 quantile_step = 0.25
 # ----------------------------------------------------------------------------------------------------------------------
 #         Process data for modelling
@@ -42,14 +42,15 @@ model = LSTMModel(
     array_folder=path.join(model_folder, "LSTM", boroughs_descriptor, f"{species}_{int(1/quantile_step)}_quantiles",
                            f"{training_window}-day_tw"),
     hidden_layer_size=4,
-    batch_size=32)
+    batch_size=32,
+    noise_std=0.3)
 
 if not evaluate_only:
-    model.fit(num_epochs=5000,
+    model.fit(num_epochs=10000,
               learning_rate=0.001,
               epochs_per_print=10)
 
-model.plot_loss(test_loss=True)
+model.plot_loss(test_loss=False)
 
-model.evaluate(training_window=7,
+model.evaluate(training_window=training_window,
                disease="COVID-19 daily lab-confirmed cases")
