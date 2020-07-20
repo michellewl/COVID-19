@@ -12,13 +12,14 @@ evaluate_only = True
 data_folder = path.join(path.dirname(path.dirname(path.dirname(path.realpath(__file__)))), "data")
 model_folder = path.dirname(path.dirname(path.realpath(__file__)))
 
-textfile = open(path.join(data_folder, "greater_london_cluster.txt"), "r")
+textfile = open(path.join(data_folder, "borough_matches.txt"), "r")  # "greater_london_cluster.txt"
 boroughs = textfile.read().split("\n")
 
-boroughs_descriptor = "greater_london_cluster"
+boroughs_descriptor = "all_boroughs"  # "greater_london_cluster"
 species = "NO2"
-training_window = 14
+training_window = 7
 quantile_step = 0.25
+noise_std = False
 # ----------------------------------------------------------------------------------------------------------------------
 #         Process data for modelling
 # ----------------------------------------------------------------------------------------------------------------------
@@ -43,7 +44,7 @@ model = LSTMModel(
                            f"{training_window}-day_tw"),
     hidden_layer_size=4,
     batch_size=32,
-    noise_std=0.3)
+    noise_std=noise_std)
 
 if not evaluate_only:
     model.fit(num_epochs=10000,

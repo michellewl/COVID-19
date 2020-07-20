@@ -13,6 +13,12 @@ import joblib
 import numpy as np
 import pandas as pd
 
+def mape_score(targets, predictions):
+    zero_indices = np.where(targets == 0)
+    targets_drop_zero = np.delete(targets, zero_indices)
+    prediction_drop_zero = np.delete(predictions, zero_indices)
+    mape = np.sum(np.abs(targets_drop_zero - prediction_drop_zero)/targets_drop_zero) * 100/len(targets_drop_zero)
+    return mape
 
 class LSTMModule(nn.Module):
     def __init__(self, input_size, hidden_layer_size, output_size=1):
@@ -164,7 +170,7 @@ class LSTMModel():
         test_dataloader = DataLoader(self.test_dataset, batch_size=self.batch_size, shuffle=False)
 
         # Load the model
-        checkpoint = torch.load(path.join(self.array_folder, self.model_filename))
+        checkpoint = torch.load(path.abspath(self.model_filename))
 
         if use_overfit_model:
             self.model.load_state_dict(checkpoint["final_state_dict"])
@@ -191,7 +197,7 @@ class LSTMModel():
                 training_prediction.append(outputs.detach().numpy())
 
         # Load the normaliser and un-normalise the predictions and targets
-        y_normaliser = joblib.load(path.join(self.y_normaliser_path))
+        y_normaliser = joblib.load(path.abspath(self.y_normaliser_path))
         training_targets = y_normaliser.inverse_transform(np.concatenate(training_targets, axis=None))
         training_prediction = y_normaliser.inverse_transform(np.concatenate(training_prediction, axis=None))
         print(f"Train targets {training_targets.shape}, Train predict {training_prediction.shape}")
@@ -199,7 +205,8 @@ class LSTMModel():
         # Compute the performance metrics
         train_rsq = r2_score(training_targets, training_prediction)
         train_mse = mean_squared_error(training_targets, training_prediction)
-        print(f"Train R sq {train_rsq}\nTrain MSE {train_mse}")
+        train_mape = mape_score(training_targets, training_prediction)
+        print(f"Train R sq {train_rsq}\nTrain MSE {train_mse}\nTrain MAPE {train_mape}")
 
         # Make predictions on test set
         test_targets = []
@@ -223,11 +230,12 @@ class LSTMModel():
         # Compute the performance metrics
         test_rsq = r2_score(test_targets, test_prediction)
         test_mse = mean_squared_error(test_targets, test_prediction)
-        print(f"Test R sq {test_rsq}\nTest MSE {test_mse}")
+        test_mape = mape_score(test_targets, test_prediction)
+        print(f"Test R sq {test_rsq}\nTest MSE {test_mse}\nTest MAPE {test_mape}")
 
         # Make dataframes for the train and test set predictions and targets
-        training_dates_boroughs = np.load(path.join(self.train_val_dates_path), allow_pickle=True)
-        test_dates_boroughs = np.load(path.join(self.test_dates_path), allow_pickle=True)
+        training_dates_boroughs = np.load(path.abspath(self.train_val_dates_path), allow_pickle=True)
+        test_dates_boroughs = np.load(path.abspath(self.test_dates_path), allow_pickle=True)
 
         training_df, test_df = pd.DataFrame(training_dates_boroughs, columns=["date", "borough"]).set_index(
             "date"), pd.DataFrame(test_dates_boroughs, columns=["date", "borough"]).set_index("date")
@@ -257,7 +265,7 @@ class LSTMModel():
                         training_df.loc[training_df["borough"] == borough, "prediction"], label="prediction")
             # Give the plot a title and annotations
             axs[0].set_title(f"Training set ({training_df.index.min()} to {training_df.index.max()})")
-            axs[0].annotate(f"R$^2$ = {train_rsq}  MSE = {train_mse}", xy=(0.05, 0.92), xycoords="axes fraction",
+            axs[0].annotate(f"R$^2$ = {train_rsq}  MSE = {train_mse}  MAPE = {train_mape}", xy=(0.05, 0.92), xycoords="axes fraction",
                             fontsize=12)
 
             # Plot test predictions and targets
@@ -267,7 +275,7 @@ class LSTMModel():
                         label="prediction")
             # Give the plot a title and annotations
             axs[1].set_title(f"Test set ({test_df.index.min()} to {test_df.index.max()})")
-            axs[1].annotate(f"R$^2$ = {test_rsq}  MSE = {test_mse}", xy=(0.05, 0.92), xycoords="axes fraction",
+            axs[1].annotate(f"R$^2$ = {test_rsq}  MSE = {test_mse}  MAPE = {test_mape}", xy=(0.05, 0.92), xycoords="axes fraction",
                             fontsize=12)
 
             # Set axes labels for both subplots
@@ -311,12 +319,28 @@ class LSTMModel():
             # At the end of the loop, close the figure
             plt.close()
 
+        if not path.exists(path.join(self.array_folder, "metrics.txt")):
+            metrics_log = open(path.join(self.array_folder, "metrics.txt"), "w")
+        else:
+            metrics_log = open(path.join(self.array_folder, "metrics.txt"), "a")
+
+        metrics_log.write("METRICS LOG\n"
+                          f"Hidden layer size: {self.hidden_layer_size}\n"
+                          f"Data augmentation: Gaussian noise std {self.noise_std}"
+                          f"Train R sq: {train_rsq}\n"
+                          f"Train MSE: {train_mse}\n"
+                          f"Train MAPE: {train_mape}\n\n"
+                          f"Test R sq: {test_rsq}\n"
+                          f"Test MSE: {test_mse}\n"
+                          f"Test MAPE: {test_mape}\n\n\n")
+        metrics_log.close()
+
     def plot_loss(self, test_loss=True, show_plot=False):
         # Load training data so we can compute the number of features
         training_dataset = LSTMTorchDataset(self.training_sequences_path, self.training_targets_path)
 
         # Load the model
-        checkpoint = torch.load(path.join(self.array_folder, self.model_filename))
+        checkpoint = torch.load(path.abspath(self.model_filename))
 
         # Load the required info for plotting losses
         training_losses = checkpoint["training_loss_history"]
