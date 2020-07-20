@@ -326,7 +326,7 @@ class LSTMModel():
 
         metrics_log.write("METRICS LOG\n"
                           f"Hidden layer size: {self.hidden_layer_size}\n"
-                          f"Data augmentation: Gaussian noise std {self.noise_std}"
+                          f"Data augmentation: Gaussian noise std {self.noise_std}\n"
                           f"Train R sq: {train_rsq}\n"
                           f"Train MSE: {train_mse}\n"
                           f"Train MAPE: {train_mape}\n\n"
