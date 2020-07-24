@@ -372,11 +372,11 @@ class LSTMModel():
         ax.scatter(best_epoch, min(val_losses))
 
         # Add a legend and title, label the plot and axes
-        plt.annotate(f"epoch {best_epoch}", (best_epoch * 1.05, min(val_losses)))
-        plt.legend()
-        plt.xlabel("epoch")
-        plt.ylabel("MSE loss")
-        plt.title(f"LSTM training loss")
+        plt.annotate(f"epoch {best_epoch}", (best_epoch * 1.05, min(val_losses)), fontsize="x-large")
+        plt.legend(fontsize="x-large")
+        plt.xlabel("epoch", fontsize="x-large")
+        plt.ylabel("MSE loss", fontsize="x-large")
+        # plt.title(f"LSTM training loss", fontsize="x-large")
 
         if show_plot:
             plt.show()

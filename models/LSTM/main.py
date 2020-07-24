@@ -12,14 +12,14 @@ evaluate_only = True
 data_folder = path.join(path.dirname(path.dirname(path.dirname(path.realpath(__file__)))), "data")
 model_folder = path.dirname(path.dirname(path.realpath(__file__)))
 
-textfile = open(path.join(data_folder, "borough_matches.txt"), "r")  # "greater_london_cluster.txt"
+textfile = open(path.join(data_folder, "greater_london_cluster.txt"), "r")  # "greater_london_cluster.txt"
 boroughs = textfile.read().split("\n")
 
-boroughs_descriptor = "all_boroughs"  # "greater_london_cluster"
+boroughs_descriptor = "greater_london_cluster"  # "greater_london_cluster"
 species = "NO2"
-training_window = 7
+training_window = 14
 quantile_step = 0.25
-noise_std = False
+noise_std = 0.3
 # ----------------------------------------------------------------------------------------------------------------------
 #         Process data for modelling
 # ----------------------------------------------------------------------------------------------------------------------
