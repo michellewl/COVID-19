@@ -54,4 +54,6 @@ if not evaluate_only:
 model.plot_loss(test_loss=False)
 
 model.evaluate(training_window=training_window,
-               disease="COVID-19 daily lab-confirmed cases")
+               disease="COVID-19 daily lab-confirmed cases",
+               plot_title=False,
+               plot_metrics=False)

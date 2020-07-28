@@ -165,7 +165,7 @@ class LSTMModel():
 
         print(f"Finished training for {num_epochs} epochs.")
 
-    def evaluate(self, training_window, disease, use_overfit_model=False, show_plot=False):
+    def evaluate(self, training_window, disease, use_overfit_model=False, show_plot=False, plot_title=True, plot_metrics=True):
         train_val_dataloader = DataLoader(self.train_val_dataset, batch_size=self.batch_size, shuffle=False)
         test_dataloader = DataLoader(self.test_dataset, batch_size=self.batch_size, shuffle=False)
 
@@ -265,7 +265,9 @@ class LSTMModel():
                         training_df.loc[training_df["borough"] == borough, "prediction"], label="prediction")
             # Give the plot a title and annotations
             axs[0].set_title(f"Training set ({training_df.index.min()} to {training_df.index.max()})")
-            axs[0].annotate(f"R$^2$ = {train_rsq}  MSE = {train_mse}  MAPE = {train_mape}", xy=(0.05, 0.92), xycoords="axes fraction",
+            axs[0].legend()
+            if plot_metrics:
+                axs[0].annotate(f"R$^2$ = {train_rsq}  MSE = {train_mse}  MAPE = {train_mape}", xy=(0.05, 0.92), xycoords="axes fraction",
                             fontsize=12)
 
             # Plot test predictions and targets
@@ -275,7 +277,9 @@ class LSTMModel():
                         label="prediction")
             # Give the plot a title and annotations
             axs[1].set_title(f"Test set ({test_df.index.min()} to {test_df.index.max()})")
-            axs[1].annotate(f"R$^2$ = {test_rsq}  MSE = {test_mse}  MAPE = {test_mape}", xy=(0.05, 0.92), xycoords="axes fraction",
+            axs[1].legend()
+            if plot_metrics:
+                axs[1].annotate(f"R$^2$ = {test_rsq}  MSE = {test_mse}  MAPE = {test_mape}", xy=(0.05, 0.92), xycoords="axes fraction",
                             fontsize=12)
 
             # Set axes labels for both subplots
@@ -284,7 +288,8 @@ class LSTMModel():
                 ax.set_ylabel(f"{disease}")
 
             # Add an overall title for the figure
-            fig.suptitle(f"LSTM model for {borough}")
+            if plot_title:
+                fig.suptitle(f"LSTM model for {borough}")
 
             # Add experiment details as annotations in the figure
             plt.figtext(0.1, 0.5, f"{training_window} day training window",
@@ -293,7 +298,6 @@ class LSTMModel():
             plt.figtext(0.1, 0.46, f"Model learnt at epoch {epoch}", fontsize=12)
 
             # Add a legend and adjust figure spacing
-            plt.legend(loc=1)
             fig.subplots_adjust(top=0.5)
             fig.tight_layout(pad=2)
 
