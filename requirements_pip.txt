@@ -8,7 +8,7 @@ joblib
 matplotlib
 numpy
 pandas
-pytorch
+torch
 requests
 scikit-learn
 scipy
