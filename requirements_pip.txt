@@ -16,4 +16,3 @@ seaborn
 shapely
 xlrd
 zipp
-zlib
