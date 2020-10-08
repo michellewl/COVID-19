@@ -7,7 +7,7 @@ import pandas as pd
 
 
 download_new_data = True
-download_GIS = False
+download_GIS = True
 
 
 home_folder = path.dirname(path.realpath(__file__))
