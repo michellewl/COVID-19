@@ -2,7 +2,6 @@
 #
 #
 #
-_pytorch_select
 adjusttext
 geopandas
 glib
@@ -17,6 +16,7 @@ openjpeg
 openssl
 pandas
 postgresql
+pytorch
 requests
 scikit-learn
 scipy
