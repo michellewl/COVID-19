@@ -9,3 +9,4 @@ models/LSTM/__pycache__/
 *.sav
 *_crop.png
 
+.DS_Store
